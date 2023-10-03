@@ -1,0 +1,10 @@
+.DS_Store
+.Rproj.user
+.lintr
+.Rhistory
+inst/doc
+*.pdf
+*.parquet
+*.xls
+*.log
+*.zip

@@ -184,32 +184,11 @@ summary_stats <- df_r %>%
 
 
 sim_plots <- function(df, n_plot) {
-    j <- 0.125
+    j <- 0.075
     df_plot <- df %>%
         filter(n == n_plot) %>%
         mutate(
             sv = sqrt(n_var),
-            algorithm = case_match(
-                algorithm,
-                "0T" ~ "Algorithm 1A",
-                "0D" ~ "Algorithm 1B",
-                "01" ~ "Algorithm 2A",
-                "02" ~ "Algorithm 2B",
-            ),
-        ) %>%
-        separate_wider_position(
-            estimand,
-            c(Strategy = 1, Covariate = 1)
-        ) %>% mutate(
-            x = as.numeric(Covariate) + case_match(
-                Strategy,
-                "k" ~ -2 * j,
-                "l" ~ +2 * j,
-            ) + case_match(
-                scale,
-                "u" ~ - j,
-                "s" ~ + j,
-            ),
             # rescale bias and std deviation to match
             root_n_bias = root_n_bias * case_match(
                 scale,
@@ -221,21 +200,46 @@ sim_plots <- function(df, n_plot) {
                 "u" ~ 1,
                 "s" ~ 8,
             ),
+            algorithm = case_match(
+                algorithm,
+                "0T" ~ "1A",
+                "0D" ~ "1B",
+                "01" ~ "2A",
+                "02" ~ "2B",
+            ),
+        ) %>%
+        separate_wider_position(estimand, c(Strategy = 1, Covariate = 1)) %>%
+        unite("est", c(Strategy, scale)) %>%
+        mutate(
+            est = case_match(
+                est,
+                "k_u" ~ "Keep-one-in, unscaled",
+                "l_u" ~ "Leave-one-out, unscaled",
+                "k_s" ~ "Keep-one-in, scaled",
+                "l_s" ~ "Leave-one-out, scaled",
+            ),
+            x = as.numeric(Covariate) + case_match(
+                algorithm,
+                "1A" ~ -3 * j / 2,
+                "1B" ~ -j / 2,
+                "2A" ~ j / 2,
+                "2B" ~ 3 * j / 2,
+            ),
         )
-
+    pch <- 0
     bias_plt <- ggplot(data = df_plot, aes(
         x = x, y = root_n_bias, ymin = bias_min, ymax = bias_max
     )) +
         geom_hline(yintercept = 0, lty = 2) +
-        geom_point(aes(color = scale, shape = Strategy))
+        geom_point(aes(color = algorithm), shape = pch)
     # geom_pointrange(aes(color = algorithm, shape = est))
 
     var_plt <- ggplot(data = df_plot, aes(x = x, y = sv)) +
-        geom_point(aes(color = scale, shape = Strategy))
+        geom_point(aes(color = algorithm), shape = pch)
 
     cov_plt <- ggplot(data = df_plot, aes(x = x, y = coverage)) +
         geom_hline(yintercept = 0.95, lty = 2) +
-        geom_point(aes(color = scale, shape = Strategy))
+        geom_point(aes(color = algorithm), shape = pch)
 
     out <- list(Bias = bias_plt, Variance = var_plt, Coverage = cov_plt)
 
@@ -260,31 +264,22 @@ sim_plots <- function(df, n_plot) {
             xlab("Covariate") +
             ylab(latex2exp::TeX(y_labels[[plt]])) +
             theme_bw() +
-            facet_wrap(vars(algorithm)) +
+            facet_wrap(vars(est)) +
             scale_color_manual(
                 values = c(
-                    "u" = "red",
-                    "s" = "blue"
+                    "1A" = "red",
+                    "1B" = "blue",
+                    "2A" = "darkgreen",
+                    "2B" = "purple"
                 ),
-                labels = c(
-                    "u" = latex2exp::TeX("\\Theta"),
-                    "s" = latex2exp::TeX("\\Psi")
-                )
-            ) +
-            scale_shape_manual(
-                values = c(
-                    "k" = 3,
-                    "l" = 22
-                ),
-                labels = c(
-                    "k" = "Keep-one-out",
-                    "l" = "Leave-one-in"
-                )
+                limits = c("1A", "1B", "2A", "2B"),
+                drop = FALSE
             ) +
             theme(axis.text.x = element_text(
-                angle = 90, vjust = 0.5, hjust = 1
+                angle = 0, vjust = 0.5, hjust = 1
             )) +
-            labs(color = "Scale", shape = "Estimand")
+            scale_x_continuous(breaks = 1:6)
+        labs(color = "Scale", shape = "Estimand")
     }
 
     return(out)
@@ -305,7 +300,7 @@ plots <- list(
 
 for (name in names(plots)) {
     file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
-    pdf(file = file_name, width = 8, height = 5)
+    pdf(file = file_name, width = 8, height = 4)
     print(plots[[name]])
     dev.off()
 }

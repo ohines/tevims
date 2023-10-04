@@ -136,7 +136,7 @@ res <- run_simulation(
   k_folds = 8,
   append = FALSE
 )
- 
+
 res_a <- res %>%
   select(matches("^tevim.*_a$")) %>%
   rename_all(~ gsub("^tevim", "order", gsub("_a$", "", .)))
@@ -222,10 +222,10 @@ sim_plots <- function(df, dgp_n, algs) {
         "b_u" ~ 2 * j,
       ) + case_match(
         algorithm,
-        "1A" ~ - j / 2,
-        "1B" ~ + j / 2,
-        "2A" ~ - j / 2,
-        "2B" ~ + j / 2,
+        "1A" ~ -j / 2,
+        "1B" ~ +j / 2,
+        "2A" ~ -j / 2,
+        "2B" ~ +j / 2,
       )
     )
 
@@ -269,13 +269,17 @@ sim_plots <- function(df, dgp_n, algs) {
       xlab("n") +
       ylab(latex2exp::TeX(y_labels[[plt]])) +
       theme_bw() +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+      labs(color = "Algorithm", shape = "Estimand") +
       scale_color_manual(
         values = c(
           "1A" = "red",
           "1B" = "blue",
-          "2A" = "red",
-          "2B" = "blue"
-        )
+          "2A" = "darkgreen",
+          "2B" = "purple"
+        ),
+        limits = c("1A", "1B", "2A", "2B"),
+        drop = FALSE
       ) +
       scale_shape_manual(
         values = c(
@@ -290,9 +294,7 @@ sim_plots <- function(df, dgp_n, algs) {
           "b_s" = latex2exp::TeX("\\Psi_2"),
           "b_u" = latex2exp::TeX("\\Theta_2")
         )
-      ) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-      labs(color = "Algorithm", shape = "Estimand")
+      )
   }
 
   return(out)
@@ -302,66 +304,57 @@ sim_plots <- function(df, dgp_n, algs) {
 ordering_plots <- function(df_order) {
   j <- 80
   df_plot <- filter(df_order) %>%
-    unite("est", dgp:scale) %>%
     mutate(
-      main_algorithm = case_match(
+      dgp = paste0("DGP ", dgp),
+      algorithm = case_match(
         algorithm,
-        "0T" ~ "Algorithm 1",
-        "0D" ~ "Algorithm 1",
-        "01" ~ "Algorithm 2",
-        "02" ~ "Algorithm 2",
-      ),
-      sub_algorithm = case_match(
-        algorithm,
-        "0T" ~ "A",
-        "0D" ~ "B",
-        "01" ~ "A",
-        "02" ~ "B",
+        "0T" ~ "1A",
+        "0D" ~ "1B",
+        "01" ~ "2A",
+        "02" ~ "2B",
       ),
       # add a small amount of plot jitter
       n = n + case_match(
-        est,
-        "1_s" ~ -2 * j,
-        "1_u" ~ -j,
-        "2_s" ~ +j,
-        "2_u" ~ 2 * j,
+        scale,
+        "s" ~ +1.5 * j,
+        "u" ~ -1.5 * j,
       ) + case_match(
         algorithm,
-        "0T" ~ - j / 2,
-        "0D" ~ + j / 2,
-        "01" ~ - j / 2,
-        "02" ~ + j / 2,
+        "1A" ~ -j,
+        "1B" ~ -j / 2,
+        "2A" ~ +j / 2,
+        "2B" ~ +j,
       )
     )
 
   order_plt <- ggplot(data = df_plot, aes(x = n, y = ordering)) +
-    geom_point(aes(color = sub_algorithm, shape = est)) +
-    facet_wrap(~main_algorithm) +
+    geom_point(aes(color = algorithm, shape = scale)) +
+    facet_wrap(~dgp) +
     xlab("n") +
     ylab(latex2exp::TeX("Proportion rank correct")) +
     theme_bw() +
     scale_color_manual(
       values = c(
-        "A" = "red",
-        "B" = "blue"
-      )
+        "1A" = "red",
+        "1B" = "blue",
+        "2A" = "darkgreen",
+        "2B" = "purple"
+      ),
+      limits = c("1A", "1B", "2A", "2B"),
+      drop = FALSE
     ) +
     scale_shape_manual(
       values = c(
-        "1_s" = 3,
-        "1_u" = 15,
-        "2_s" = 4,
-        "2_u" = 16
+        "s" = 3,
+        "u" = 22
       ),
       labels = c(
-        "1_s" = latex2exp::TeX("$(DGP 1), \\Psi"),
-        "1_u" = latex2exp::TeX("$(DGP 1), \\Theta"),
-        "2_s" = latex2exp::TeX("$(DGP 2), \\Psi"),
-        "2_u" = latex2exp::TeX("$(DGP 2), \\Theta")
+        "s" = latex2exp::TeX("\\Psi"),
+        "u" = latex2exp::TeX("\\Theta")
       )
     ) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(color = "Sub-algorithm", shape = "DGP, Method")
+    labs(color = "Algorithm", shape = "Scale type")
 }
 
 
@@ -398,7 +391,7 @@ plots <- list(
 for (name in names(plots)) {
   file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
   plot <- nice_display(plots[[name]])
-  pdf(file = file_name, width = 8, height = 3.5)
+  pdf(file = file_name, width = 8, height = 3)
   print(plot)
   dev.off()
 }
@@ -409,7 +402,48 @@ order_plots <- list(
 for (name in names(order_plots)) {
   file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
   plot <- order_plots[[name]]
-  pdf(file = file_name, width = 8, height = 3.5)
+  pdf(file = file_name, width = 8, height = 3)
   print(plot)
+  dev.off()
+}
+
+nice_display2 <- function(sim_plts1, sim_plts2, labels = "AUTO") {
+  # https://github.com/wilkelab/cowplot/blob/master/vignettes/shared_legends.Rmd
+  p1 <- sim_plts1$Bias
+  p2 <- sim_plts1$Variance
+  p3 <- sim_plts1$Coverage
+  p4 <- sim_plts2$Bias
+  p5 <- sim_plts2$Variance
+  p6 <- sim_plts2$Coverage
+
+  legend_b <- cowplot::get_legend(
+    p2 +
+      guides(color = guide_legend(nrow = 1)) +
+      theme(legend.position = "bottom")
+  )
+  prow <- cowplot::plot_grid(
+    p1 + theme(legend.position = "none"),
+    p2 + theme(legend.position = "none"),
+    p3 + theme(legend.position = "none"),
+    p4 + theme(legend.position = "none"),
+    p5 + theme(legend.position = "none"),
+    p6 + theme(legend.position = "none"),
+    ncol = 3,
+    align = "hv",
+    axis = "b",
+    labels = labels
+  )
+  cowplot::plot_grid(prow, legend_b, ncol = 1, rel_heights = c(1, .1))
+}
+
+nds <- list(
+  dgp1 = nice_display2(plots$dgp_1_nocv, plots$dgp_1_cv),
+  dgp2 = nice_display2(plots$dgp_2_nocv, plots$dgp_2_cv)
+)
+
+for (name in names(nds)) {
+  file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
+  pdf(file = file_name, width = 8, height = 7)
+  print(nds[[name]])
   dev.off()
 }

@@ -1,13 +1,13 @@
 source("R/simulation/utils.R")
 source("R/algorithms.R")
-source("R/simulation/true_values_experiment_3.R")
+source("R/simulation/true_values_experiment_2.R")
 require(tidyr)
 require(dplyr)
 require(ggplot2)
 require(glue)
 
 RESULTS_DIR <- "Output/"
-SIM_NAME <- "experiment3"
+SIM_NAME <- "experiment2"
 
 
 dgp3 <- function(n) {

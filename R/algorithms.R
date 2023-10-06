@@ -1,5 +1,9 @@
 require(dplyr)
 
+# for convenience we isolate lapply
+# this means we can that we can replace it with a parallel version if we want
+lapply_func <- lapply
+
 te_vim <- function(po, cate, sub_cate, scaled = FALSE) {
   # average treatment effect
   n <- length(po)
@@ -68,7 +72,7 @@ algorithm_0 <- function(
   cate_dr <- cate_model(po, x, x)$pred
 
   # Fit reduced variable CATE and evaluate
-  te_vims <- lapply(covariate_groups, function(covs) {
+  te_vims <- lapply_func(covariate_groups, function(covs) {
     x_s <- select(x, -all_of(covs))
     t_subcate <- cate_model(cate_t, x_s, x_s)$pred
     d_subcate <- cate_model(cate_dr, x_s, x_s)$pred
@@ -109,7 +113,7 @@ algorithm_1 <- function(
   # cross fit to obtain pseudo-outcome and cate predictions
   fold_list <- unique(folds)
   n <- length(folds)
-  cross_fits <- lapply(fold_list, function(fold) {
+  cross_fits <- lapply_func(fold_list, function(fold) {
     in_train <- folds != fold
     in_test <- !in_train
 
@@ -167,7 +171,7 @@ algorithm_2 <- function(
 
   # (double) cross-fit pseudo outcomes
   # double in the sense of leaving out two folds
-  cross_fits <- lapply(fold_pairs, function(fold_pair) {
+  cross_fits <- lapply_func(fold_pairs, function(fold_pair) {
     in_train <- !folds %in% fold_pair
     pseudo_outcome_model(
       y[in_train],

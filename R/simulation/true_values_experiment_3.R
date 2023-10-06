@@ -86,7 +86,7 @@ true_values <- function(a, b, c, rho, scaled = TRUE) {
         value_cond,
         a = a, b = b, c = c, rho = rho
     )
-    keep_one_in <- vte - keep_one_in
+    # keep_one_in <- vte - keep_one_in
 
     shapley_values <- sapply(
         1:6,

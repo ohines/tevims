@@ -1,7 +1,6 @@
 source("R/simulation/utils.R")
 source("R/algorithms.R")
-source("R/modelling_utilities.R")
-source("R/simulation/true_values_experiment_1")
+source("R/simulation/true_values_experiment_1.R")
 require(tidyr)
 require(dplyr)
 require(ggplot2)
@@ -12,7 +11,7 @@ SIM_NAME <- "experiment0"
 
 
 dgp <- function(n) {
-  noise = rnorm(n)
+  noise <- rnorm(n)
   tibble(
     X1 = runif(n, -1, 1),
     X2 = runif(n, -1, 1),
@@ -28,17 +27,57 @@ dgp <- function(n) {
 # true values for TEVIM estimands under `dgp1`
 true_vals1 <- tibble(
   estimand = c("a", "a", "b", "b"),
-  scale = c("u", "s", "u", "s"),  # unscaled vs scaled
+  scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "1",
   true_value = as.numeric(true_values(1.4, 25 / 9, 1))[3:6],
 )
 true_vals2 <- tibble(
   estimand = c("a", "a", "b", "b"),
-  scale = c("u", "s", "u", "s"),  # unscaled vs scaled
+  scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "2",
   true_value = as.numeric(true_values(0.14, 25 / 90, 0.1))[3:6],
 )
 true_vals <- bind_rows(true_vals1, true_vals2)
+
+# fitting function wrappers
+wrapper_gam <- function(y_train, x_train, x_new, family, interactions) {
+  p <- dim(x_train)[2]
+
+  if ((p == 3) && interactions) {
+    gam_model <- as.formula(
+      "y_train~ s(X1) + s(X2) + ti(X1, X2) + s(X1, by=A) + s(X2, by=A) + ti(X1, X2, by=A)"
+    )
+  } else if ((p == 2) && interactions) {
+    gam_model <- as.formula(
+      "y_train~ s(X1) + s(X2) + ti(X1, X2)"
+    )
+  } else {
+    gam_model <- as.formula(
+      paste("y_train~", paste(
+        paste("s(", colnames(x_train), ")", sep = ""),
+        collapse = "+"
+      ))
+    )
+  }
+
+  fit <- mgcv::gam(gam_model, data = data.frame(x_train), family = family)
+  pred <- mgcv::predict.gam(
+    fit,
+    newdata = data.frame(x_new),
+    type = "response"
+  )
+  list(pred = pred)
+}
+
+
+gam_binomial <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = binomial(), TRUE)
+}
+
+
+gam_gaussian <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = gaussian(), TRUE)
+}
 
 
 get_estimates <- function(df, k_folds) {
@@ -53,17 +92,17 @@ get_estimates <- function(df, k_folds) {
 
   res_1 <- all_algorithms(
     y1, a, x, folds,
-    wrapper_gam_gaussian,
-    wrapper_gam_binomial,
-    wrapper_gam_gaussian,
+    gam_gaussian,
+    gam_binomial,
+    gam_gaussian,
     covariate_groups
   )$estimates
 
   res_2 <- all_algorithms(
     y2, a, x, folds,
-    wrapper_gam_gaussian,
-    wrapper_gam_binomial,
-    wrapper_gam_gaussian,
+    gam_gaussian,
+    gam_binomial,
+    gam_gaussian,
     covariate_groups
   )$estimates
 
@@ -88,14 +127,14 @@ get_estimates <- function(df, k_folds) {
 
 # The meat of this script
 res <- run_simulation(
-  n_datasets = 2,
+  n_datasets = 1000,
   sample_sizes = c(500, 1000, 2000, 3000, 4000, 5000),
   generate_data = dgp,
   get_estimates = get_estimates,
   sim_name = SIM_NAME,
   results_directory = RESULTS_DIR,
-  k_folds = 5,
-  append = TRUE
+  k_folds = 8,
+  append = FALSE
 )
 
 res_a <- res %>%
@@ -113,7 +152,12 @@ ordering <- purrr::map2_dfc(res_b, res_a, ~ .x > .y) %>%
   )
 ordering_summary <- ordering %>%
   group_by(n, algorithm, dgp) %>%
-  summarise(ordering_u = mean(order), ordering_s = mean(order_s))
+  summarise(ordering_u = mean(order), ordering_s = mean(order_s)) %>%
+  pivot_longer(
+    cols = starts_with("ordering"),
+    names_to = c(".value", "scale"),
+    names_pattern = "(.{1,20})_(.{1})$"
+  )
 
 # process and tabulate results
 df_r <- res %>%
@@ -143,7 +187,7 @@ summary_stats <- df_r %>%
     n_samples = length(bias),
     coverage = mean(coverage_yn),
     root_n_bias = mean(bias * sqrt(n)),
-    n_var  = mean(bias^2 * n) - root_n_bias^2,
+    n_var = mean(bias^2 * n) - root_n_bias^2,
     root_n_bias_std_err = sqrt(n_var / n_samples),
     bias_min = root_n_bias - 1.96 * root_n_bias_std_err,
     bias_max = root_n_bias + 1.96 * root_n_bias_std_err
@@ -151,36 +195,64 @@ summary_stats <- df_r %>%
 
 
 # helper function for producing plots
-sim_plots <- function(df, var_name, algs, scaled) {
-  scale_code <- ifelse(scaled, "s", "u")
-  df_plot <- filter(df,
-    estimand == var_name,
-    algorithm %in% algs,
-    scale == scale_code,
+sim_plots <- function(df, dgp_n, algs) {
+  j <- 80
+  df_plot <- filter(
+    df,
+    (dgp == dgp_n) & (algorithm %in% algs)
   ) %>%
-    mutate(sv = sqrt(n_var))
+    mutate(
+      sv = sqrt(n_var),
+      algorithm = case_match(
+        algorithm,
+        "0T" ~ "1A",
+        "0D" ~ "1B",
+        "01" ~ "2A",
+        "02" ~ "2B",
+      ),
+    ) %>%
+    unite("est", estimand:scale) %>%
+    mutate(
+      # add a small amount of plot jitter
+      n = n + case_match(
+        est,
+        "a_s" ~ -2 * j,
+        "a_u" ~ -j,
+        "b_s" ~ +j,
+        "b_u" ~ 2 * j,
+      ) + case_match(
+        algorithm,
+        "1A" ~ -j / 2,
+        "1B" ~ +j / 2,
+        "2A" ~ -j / 2,
+        "2B" ~ +j / 2,
+      )
+    )
 
   # base plots
   bias_plt <- ggplot(data = df_plot, aes(
     x = n, y = root_n_bias, ymin = bias_min, ymax = bias_max
   )) +
     geom_hline(yintercept = 0, lty = 2) +
-    geom_pointrange(aes(color = algorithm, shape = learner))
+    geom_point(aes(color = algorithm, shape = est))
+  # geom_pointrange(aes(color = algorithm, shape = est))
 
   var_plt <- ggplot(data = df_plot, aes(x = n, y = sv)) +
-    geom_point(aes(color = algorithm, shape = learner))
+    geom_point(aes(color = algorithm, shape = est))
 
   cov_plt <- ggplot(data = df_plot, aes(x = n, y = coverage)) +
     geom_hline(yintercept = 0.95, lty = 2) +
-    geom_point(aes(color = algorithm, shape = learner))
+    geom_point(aes(color = algorithm, shape = est))
 
   out <- list(Bias = bias_plt, Variance = var_plt, Coverage = cov_plt)
 
   # style settings
+  df_cov <- filter(df, dgp == dgp_n)
   plot_limits <- list(
-    Bias = c(min(df_plot$bias_min, 0), max(df_plot$bias_max, 0)),
+    # Bias = c(min(df_plot$bias_min, 0), max(df_plot$bias_max, 0)),
+    Bias = c(min(df_plot$root_n_bias, 0), max(df_plot$root_n_bias, 0)),
     Variance = c(min(df_plot$sv), max(df_plot$sv)),
-    Coverage = c(min(df_plot$coverage, 0.95), max(df_plot$coverage, 0.95))
+    Coverage = c(min(df_cov$coverage, 0.95), max(df_cov$coverage, 0.95))
   )
 
   y_labels <- list(
@@ -197,12 +269,92 @@ sim_plots <- function(df, var_name, algs, scaled) {
       xlab("n") +
       ylab(latex2exp::TeX(y_labels[[plt]])) +
       theme_bw() +
-      scale_shape_manual(values = c(4, 5)) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-      labs(color = "Algorithm", shape = "Learner")
+      labs(color = "Algorithm", shape = "Estimand") +
+      scale_color_manual(
+        values = c(
+          "1A" = "red",
+          "1B" = "blue",
+          "2A" = "darkgreen",
+          "2B" = "purple"
+        ),
+        limits = c("1A", "1B", "2A", "2B"),
+        drop = FALSE
+      ) +
+      scale_shape_manual(
+        values = c(
+          "a_s" = 3,
+          "a_u" = 22,
+          "b_s" = 4,
+          "b_u" = 21
+        ),
+        labels = c(
+          "a_s" = latex2exp::TeX("\\Psi_1"),
+          "a_u" = latex2exp::TeX("\\Theta_1"),
+          "b_s" = latex2exp::TeX("\\Psi_2"),
+          "b_u" = latex2exp::TeX("\\Theta_2")
+        )
+      )
   }
 
   return(out)
+}
+
+
+ordering_plots <- function(df_order) {
+  j <- 80
+  df_plot <- filter(df_order) %>%
+    mutate(
+      dgp = paste0("DGP ", dgp),
+      algorithm = case_match(
+        algorithm,
+        "0T" ~ "1A",
+        "0D" ~ "1B",
+        "01" ~ "2A",
+        "02" ~ "2B",
+      ),
+      # add a small amount of plot jitter
+      n = n + case_match(
+        scale,
+        "s" ~ +1.5 * j,
+        "u" ~ -1.5 * j,
+      ) + case_match(
+        algorithm,
+        "1A" ~ -j,
+        "1B" ~ -j / 2,
+        "2A" ~ +j / 2,
+        "2B" ~ +j,
+      )
+    )
+
+  order_plt <- ggplot(data = df_plot, aes(x = n, y = ordering)) +
+    geom_point(aes(color = algorithm, shape = scale)) +
+    facet_wrap(~dgp) +
+    xlab("n") +
+    ylab(latex2exp::TeX("Proportion rank correct")) +
+    theme_bw() +
+    scale_color_manual(
+      values = c(
+        "1A" = "red",
+        "1B" = "blue",
+        "2A" = "darkgreen",
+        "2B" = "purple"
+      ),
+      limits = c("1A", "1B", "2A", "2B"),
+      drop = FALSE
+    ) +
+    scale_shape_manual(
+      values = c(
+        "s" = 3,
+        "u" = 22
+      ),
+      labels = c(
+        "s" = latex2exp::TeX("\\Psi"),
+        "u" = latex2exp::TeX("\\Theta")
+      )
+    ) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(color = "Algorithm", shape = "Scale type")
 }
 
 
@@ -231,21 +383,67 @@ nice_display <- function(sim_plts, labels = "AUTO") {
 
 # Produce and save plots
 plots <- list(
-  X1_cv = sim_plots(summary_stats, "a", c("01", "02"), scaled = FALSE),
-  X2_cv = sim_plots(summary_stats, "b", c("01", "02"), scaled = FALSE),
-  X1_nocv = sim_plots(summary_stats, "a", c("0D", "0T"), scaled = FALSE),
-  X2_nocv = sim_plots(summary_stats, "b", c("0D", "0T"), scaled = FALSE),
-  X1_cv_scaled = sim_plots(summary_stats, "a", c("01", "02"), scaled = TRUE),
-  X2_cv_scaled = sim_plots(summary_stats, "b", c("01", "02"), scaled = TRUE),
-  X1_nocv_scaled = sim_plots(summary_stats, "a", c("0D", "0T"), scaled = TRUE),
-  X2_nocv_scaled = sim_plots(summary_stats, "b", c("0D", "0T"), scaled = TRUE)
-
+  dgp_1_cv = sim_plots(summary_stats, "1", c("01", "02")),
+  dgp_2_cv = sim_plots(summary_stats, "2", c("01", "02")),
+  dgp_1_nocv = sim_plots(summary_stats, "1", c("0T", "0D")),
+  dgp_2_nocv = sim_plots(summary_stats, "2", c("0T", "0D"))
 )
-
 for (name in names(plots)) {
   file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
   plot <- nice_display(plots[[name]])
-  pdf(file = file_name, width = 8, height = 3.5)
+  pdf(file = file_name, width = 8, height = 3)
   print(plot)
+  dev.off()
+}
+
+order_plots <- list(
+  ordering = ordering_plots(ordering_summary)
+)
+for (name in names(order_plots)) {
+  file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
+  plot <- order_plots[[name]]
+  pdf(file = file_name, width = 8, height = 3)
+  print(plot)
+  dev.off()
+}
+
+nice_display2 <- function(sim_plts1, sim_plts2, labels = "AUTO") {
+  # https://github.com/wilkelab/cowplot/blob/master/vignettes/shared_legends.Rmd
+  p1 <- sim_plts1$Bias
+  p2 <- sim_plts1$Variance
+  p3 <- sim_plts1$Coverage
+  p4 <- sim_plts2$Bias
+  p5 <- sim_plts2$Variance
+  p6 <- sim_plts2$Coverage
+
+  legend_b <- cowplot::get_legend(
+    p2 +
+      guides(color = guide_legend(nrow = 1)) +
+      theme(legend.position = "bottom")
+  )
+  prow <- cowplot::plot_grid(
+    p1 + theme(legend.position = "none"),
+    p2 + theme(legend.position = "none"),
+    p3 + theme(legend.position = "none"),
+    p4 + theme(legend.position = "none"),
+    p5 + theme(legend.position = "none"),
+    p6 + theme(legend.position = "none"),
+    ncol = 3,
+    align = "hv",
+    axis = "b",
+    labels = labels
+  )
+  cowplot::plot_grid(prow, legend_b, ncol = 1, rel_heights = c(1, .1))
+}
+
+nds <- list(
+  dgp1 = nice_display2(plots$dgp_1_nocv, plots$dgp_1_cv),
+  dgp2 = nice_display2(plots$dgp_2_nocv, plots$dgp_2_cv)
+)
+
+for (name in names(nds)) {
+  file_name <- glue("{RESULTS_DIR}sim_plot_{SIM_NAME}_{name}.pdf")
+  pdf(file = file_name, width = 8, height = 7)
+  print(nds[[name]])
   dev.off()
 }

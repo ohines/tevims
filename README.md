@@ -5,7 +5,7 @@ by Oliver Hines, Karla Diaz-Ordaz, and Stijn Vansteelandt
 
 ## Simulation study
 
-Simulation code is contained in `R/simulation`. To run simulations, run `experiment_1.R` from the repo root. Simulation data, log files and plots will be saved to `Output/`.
+Simulation code is contained in `R/simulation`. To run simulations, run `experiment_0.R` from the repo root. Simulation data, log files and plots will be saved to `Output/`.
 
 ## Illustrated example
 

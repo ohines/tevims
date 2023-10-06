@@ -7,7 +7,7 @@ require(ggplot2)
 require(glue)
 
 RESULTS_DIR <- "Output/"
-SIM_NAME <- "experiment0"
+SIM_NAME <- "experiment1"
 
 
 dgp <- function(n) {

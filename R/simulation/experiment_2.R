@@ -68,29 +68,12 @@ true_vals <- bind_rows(true_vals, true_vals_scaled)
 
 # fitting function wrappers
 wrapper_gam <- function(y_train, x_train, x_new, family) {
-    cols <- colnames(x_train)
-    a_index <- which(cols == "A")
-    cols_contains_a <- !identical(a_index, integer(0))
-    if (cols_contains_a) {
-        cols <- cols[-a_index]
-        gam_model <- as.formula(
-            paste("y_train~", paste(
-                c(
-                    paste("s(", cols, ", by = A)", sep = ""),
-                    paste("s(", cols, ", by = 1 - A)", sep = "")
-                ),
-                collapse = "+"
-            ))
-        )
-    } else {
-        gam_model <- as.formula(
-            paste("y_train~", paste(
-                paste("s(", cols, ")", sep = ""),
-                collapse = "+"
-            ))
-        )
-    }
-
+    gam_model <- as.formula(
+        paste("y_train~", paste(
+            paste("s(", colnames(x_train), ")", sep = ""),
+            collapse = "+"
+        ))
+    )
     fit <- mgcv::gam(gam_model, data = data.frame(x_train), family = family)
     pred <- mgcv::predict.gam(
         fit,
@@ -100,14 +83,16 @@ wrapper_gam <- function(y_train, x_train, x_new, family) {
     list(pred = pred)
 }
 
-
-gam_binomial <- function(y_train, x_train, x_new) {
+gam_propensity_score <- function(y_train, x_train, x_new) {
     wrapper_gam(y_train, x_train, x_new, family = binomial())
 }
 
-
-gam_gaussian <- function(y_train, x_train, x_new) {
+gam_cate <- function(y_train, x_train, x_new) {
     wrapper_gam(y_train, x_train, x_new, family = gaussian())
+}
+
+gam_outcome <- function(y_train, x_train, x_new) {
+    t_learner(y_train, x_train, x_new, "A", wrapper_gam, family = gaussian())
 }
 
 
@@ -121,9 +106,9 @@ get_estimates <- function(df, k_folds, covariate_groups) {
 
     res <- all_algorithms(
         y, a, x, folds,
-        gam_gaussian,
-        gam_binomial,
-        gam_gaussian,
+        gam_outcome,
+        gam_propensity_score,
+        gam_cate,
         covariate_groups
     )$estimates
 
@@ -140,8 +125,8 @@ get_estimates <- function(df, k_folds, covariate_groups) {
 
 # The meat of this script
 res <- run_simulation(
-    n_datasets = 300,
-    sample_sizes = c(500, 5000),
+    n_datasets = 500,
+    sample_sizes = c(5000),
     generate_data = dgp3,
     get_estimates = get_estimates,
     sim_name = SIM_NAME,

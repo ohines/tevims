@@ -123,7 +123,9 @@ fit_sl <- function(y_train, x_train, x_new) {
 }
 
 
-fitfunc_outcome <- fit_sl
+fitfunc_outcome <- function(y_train, x_train, x_new) {
+  t_learner(y_train, x_train, x_new, "A", fit_sl)
+}
 fitfunc_cate <- fit_sl
 fit_func_ps <- fn_constant
 
@@ -171,7 +173,7 @@ te_vim_forest <- function(df, algo, scale = "u", x_intercept = 0) {
     )
   df_plot$est <- label_list[df_plot$est]
   df_plot$strategy <- c(KI = "(KOI)", LO = "(LOO)", sep = " ")[df_plot$strategy]
-  df_plot$Strategy <- df_plot$strategy
+  df_plot$Mode <- df_plot$strategy
   df_plot <- unite(df_plot, "estimand", c(est, strategy), sep = " ")
   df_plot$estimand <- factor(df_plot$estimand, levels = df_plot$estimand)
 

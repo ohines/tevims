@@ -40,14 +40,10 @@ true_vals2 <- tibble(
 true_vals <- bind_rows(true_vals1, true_vals2)
 
 # fitting function wrappers
-wrapper_gam <- function(y_train, x_train, x_new, family, interactions) {
+wrapper_gam <- function(y_train, x_train, x_new, family) {
   p <- dim(x_train)[2]
 
-  if ((p == 3) && interactions) {
-    gam_model <- as.formula(
-      "y_train~ s(X1) + s(X2) + ti(X1, X2) + s(X1, by=A) + s(X2, by=A) + ti(X1, X2, by=A)"
-    )
-  } else if ((p == 2) && interactions) {
+  if (p == 2) {
     gam_model <- as.formula(
       "y_train~ s(X1) + s(X2) + ti(X1, X2)"
     )
@@ -70,13 +66,16 @@ wrapper_gam <- function(y_train, x_train, x_new, family, interactions) {
 }
 
 
-gam_binomial <- function(y_train, x_train, x_new) {
-  wrapper_gam(y_train, x_train, x_new, family = binomial(), TRUE)
+gam_propensity_score <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = binomial())
 }
 
+gam_cate <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = gaussian())
+}
 
-gam_gaussian <- function(y_train, x_train, x_new) {
-  wrapper_gam(y_train, x_train, x_new, family = gaussian(), TRUE)
+gam_outcome <- function(y_train, x_train, x_new) {
+  t_learner(y_train, x_train, x_new, "A", wrapper_gam, family = gaussian())
 }
 
 
@@ -92,17 +91,17 @@ get_estimates <- function(df, k_folds) {
 
   res_1 <- all_algorithms(
     y1, a, x, folds,
-    gam_gaussian,
-    gam_binomial,
-    gam_gaussian,
+    gam_outcome,
+    gam_propensity_score,
+    gam_cate,
     covariate_groups
   )$estimates
 
   res_2 <- all_algorithms(
     y2, a, x, folds,
-    gam_gaussian,
-    gam_binomial,
-    gam_gaussian,
+    gam_outcome,
+    gam_propensity_score,
+    gam_cate,
     covariate_groups
   )$estimates
 

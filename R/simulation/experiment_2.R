@@ -270,14 +270,10 @@ sim_plots <- function(df, n_plot) {
     return(out)
 }
 
-p500 <- sim_plots(summary_stats, 500)
 p5000 <- sim_plots(summary_stats, 5000)
 
 # Produce and save plots
 plots <- list(
-    dgp_3_n500_bias = p500$Bias,
-    dgp_3_n500_variance = p500$Variance,
-    dgp_3_n500_coverage = p500$Coverage,
     dgp_3_n5000_bias = p5000$Bias,
     dgp_3_n5000_variance = p5000$Variance,
     dgp_3_n5000_coverage = p5000$Coverage

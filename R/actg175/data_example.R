@@ -114,7 +114,7 @@ fit_sl <- function(y_train, x_train, x_new) {
     X = x_train,
     newX = x_new,
     family = gaussian(),
-    cvControl = list(V = 8),
+    cvControl = list(V = 10),
     SL.library = sl_lib
   )
 
@@ -137,6 +137,23 @@ results <- all_algorithms(
   covariate_groups
 )
 
+z_width <- 1.959964
+atevte <- results$ate_vte %>%
+  as_tibble() %>%
+  mutate(
+    ate_lb = ate - z_width * ate.std_err,
+    ate_ub = ate + z_width * ate.std_err,
+    ate_pval = 1 - pchisq((ate / ate.std_err)^2, df = 1),
+    vte_lb = vte - z_width * vte.std_err,
+    vte_ub = vte + z_width * vte.std_err,
+    vte_pval = 1 - pchisq((vte / vte.std_err)^2, df = 1),
+    rootvte = sqrt(vte),
+  )
+atevte %>%
+  arrow::write_parquet(
+    glue("{RESULTS_DIR}{INVESTIGATION_NAME}_atevte.parquet")
+  )
+
 res <- results$estimates %>%
   c() %>%
   unlist() %>%
@@ -157,9 +174,11 @@ res <- as_tibble(res) %>%
     names_to = c(".value", "scale"),
     names_pattern = "(.{1,20})_(.{1})$"
   )
-path_out <- glue("{RESULTS_DIR}{INVESTIGATION_NAME}.parquet")
-arrow::write_parquet(res, path_out)
-res <- arrow::read_parquet(path_out)
+
+res %>%
+  arrow::write_parquet(
+    glue("{RESULTS_DIR}{INVESTIGATION_NAME}_tevims.parquet")
+  )
 
 # make and save some pretty forest plots
 te_vim_forest <- function(df, algo, scale = "u", x_intercept = 0) {
@@ -180,7 +199,7 @@ te_vim_forest <- function(df, algo, scale = "u", x_intercept = 0) {
   ggplot(data = df_plot, aes(
     x = estimand,
     y = tevim,
-    color = Strategy,
+    color = Mode,
     ymin = tevim - 1.96 * std_err,
     ymax = tevim + 1.96 * std_err
   )) +
@@ -197,11 +216,6 @@ te_vim_forest <- function(df, algo, scale = "u", x_intercept = 0) {
       )
     )
 }
-
-p_0T <- te_vim_forest(res, "0T")
-p_0D <- te_vim_forest(res, "0D")
-p_01 <- te_vim_forest(res, "01")
-p_02 <- te_vim_forest(res, "02")
 
 nice_display <- function(p1, p2, p3, p4, labels = "AUTO") {
   # https://github.com/wilkelab/cowplot/blob/master/vignettes/shared_legends.Rmd

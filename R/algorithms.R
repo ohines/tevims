@@ -393,3 +393,35 @@ pseudo_outcome_model <- function(
 
   list(pred = po, cate = cate)
 }
+
+
+t_learner <- function(
+    y_train,
+    x_train,
+    x_new,
+    treatment_var_name,
+    fit_fn,
+    ...) {
+  a_train <- x_train[, treatment_var_name] == 1
+  a_new <- x_new[, treatment_var_name] == 1
+
+  non_treat <- colnames(x_train) != treatment_var_name
+
+  fit_1 <- fit_fn(
+    y_train[a_train],
+    x_train[a_train, non_treat],
+    x_new[a_new, non_treat],
+    ...
+  )
+  fit_0 <- fit_fn(
+    y_train[!a_train],
+    x_train[!a_train, non_treat],
+    x_new[!a_new, non_treat],
+    ...
+  )
+
+  pred <- rep(NA, length(a_new))
+  pred[a_new] <- fit_1$pred
+  pred[!a_new] <- fit_0$pred
+  list(pred = pred)
+}

@@ -23,31 +23,29 @@ dgp <- function(n) {
   )
 }
 
-
 # true values for TEVIM estimands under `dgp1`
+true_vals_dgp1 <- true_values(1.4, 25 / 9, 1)
 true_vals1 <- tibble(
   estimand = c("a", "a", "b", "b"),
   scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "1",
-  true_value = as.numeric(true_values(1.4, 25 / 9, 1))[3:6],
+  true_value = as.numeric(true_vals_dgp1)[3:6],
 )
+true_vals_dgp2 <- true_values(0.14, 25 / 90, 0.1)
 true_vals2 <- tibble(
   estimand = c("a", "a", "b", "b"),
   scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "2",
-  true_value = as.numeric(true_values(0.14, 25 / 90, 0.1))[3:6],
+  true_value = as.numeric(true_vals_dgp2)[3:6],
 )
+true_vtes <- c(true_vals_dgp1$vte, true_vals_dgp2$vte)
 true_vals <- bind_rows(true_vals1, true_vals2)
 
 # fitting function wrappers
-wrapper_gam <- function(y_train, x_train, x_new, family, interactions) {
+wrapper_gam <- function(y_train, x_train, x_new, family) {
   p <- dim(x_train)[2]
 
-  if ((p == 3) && interactions) {
-    gam_model <- as.formula(
-      "y_train~ s(X1) + s(X2) + ti(X1, X2) + s(X1, by=A) + s(X2, by=A) + ti(X1, X2, by=A)"
-    )
-  } else if ((p == 2) && interactions) {
+  if (p == 2) {
     gam_model <- as.formula(
       "y_train~ s(X1) + s(X2) + ti(X1, X2)"
     )
@@ -70,13 +68,16 @@ wrapper_gam <- function(y_train, x_train, x_new, family, interactions) {
 }
 
 
-gam_binomial <- function(y_train, x_train, x_new) {
-  wrapper_gam(y_train, x_train, x_new, family = binomial(), TRUE)
+gam_propensity_score <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = binomial())
 }
 
+gam_cate <- function(y_train, x_train, x_new) {
+  wrapper_gam(y_train, x_train, x_new, family = gaussian())
+}
 
-gam_gaussian <- function(y_train, x_train, x_new) {
-  wrapper_gam(y_train, x_train, x_new, family = gaussian(), TRUE)
+gam_outcome <- function(y_train, x_train, x_new) {
+  t_learner(y_train, x_train, x_new, "A", wrapper_gam, family = gaussian())
 }
 
 
@@ -92,17 +93,17 @@ get_estimates <- function(df, k_folds) {
 
   res_1 <- all_algorithms(
     y1, a, x, folds,
-    gam_gaussian,
-    gam_binomial,
-    gam_gaussian,
+    gam_outcome,
+    gam_propensity_score,
+    gam_cate,
     covariate_groups
   )$estimates
 
   res_2 <- all_algorithms(
     y2, a, x, folds,
-    gam_gaussian,
-    gam_binomial,
-    gam_gaussian,
+    gam_outcome,
+    gam_propensity_score,
+    gam_cate,
     covariate_groups
   )$estimates
 
@@ -127,7 +128,7 @@ get_estimates <- function(df, k_folds) {
 
 # The meat of this script
 res <- run_simulation(
-  n_datasets = 1000,
+  n_datasets = 500,
   sample_sizes = c(500, 1000, 2000, 3000, 4000, 5000),
   generate_data = dgp,
   get_estimates = get_estimates,
@@ -197,18 +198,29 @@ summary_stats <- df_r %>%
 # helper function for producing plots
 sim_plots <- function(df, dgp_n, algs) {
   j <- 80
+  true_vte <- true_vtes[as.numeric(dgp_n)]
   df_plot <- filter(
     df,
     (dgp == dgp_n) & (algorithm %in% algs)
   ) %>%
     mutate(
-      sv = sqrt(n_var),
       algorithm = case_match(
         algorithm,
         "0T" ~ "1A",
         "0D" ~ "1B",
         "01" ~ "2A",
         "02" ~ "2B",
+      ),
+      # rescale bias and std deviation to match
+      root_n_bias = root_n_bias * case_match(
+        scale,
+        "u" ~ 1,
+        "s" ~ true_vte,
+      ),
+      sv = sqrt(n_var) * case_match(
+        scale,
+        "u" ~ 1,
+        "s" ~ true_vte,
       ),
     ) %>%
     unite("est", estimand:scale) %>%
@@ -226,7 +238,7 @@ sim_plots <- function(df, dgp_n, algs) {
         "1B" ~ +j / 2,
         "2A" ~ -j / 2,
         "2B" ~ +j / 2,
-      )
+      ),
     )
 
   # base plots

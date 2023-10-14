@@ -23,20 +23,22 @@ dgp <- function(n) {
   )
 }
 
-
 # true values for TEVIM estimands under `dgp1`
+true_vals_dgp1 <- true_values(1.4, 25 / 9, 1)
 true_vals1 <- tibble(
   estimand = c("a", "a", "b", "b"),
   scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "1",
-  true_value = as.numeric(true_values(1.4, 25 / 9, 1))[3:6],
+  true_value = as.numeric(true_vals_dgp1)[3:6],
 )
+true_vals_dgp2 <- true_values(0.14, 25 / 90, 0.1)
 true_vals2 <- tibble(
   estimand = c("a", "a", "b", "b"),
   scale = c("u", "s", "u", "s"), # unscaled vs scaled
   dgp = "2",
-  true_value = as.numeric(true_values(0.14, 25 / 90, 0.1))[3:6],
+  true_value = as.numeric(true_vals_dgp2)[3:6],
 )
+true_vtes <- c(true_vals_dgp1$vte, true_vals_dgp2$vte)
 true_vals <- bind_rows(true_vals1, true_vals2)
 
 # fitting function wrappers
@@ -196,18 +198,29 @@ summary_stats <- df_r %>%
 # helper function for producing plots
 sim_plots <- function(df, dgp_n, algs) {
   j <- 80
+  true_vte <- true_vtes[as.numeric(dgp_n)]
   df_plot <- filter(
     df,
     (dgp == dgp_n) & (algorithm %in% algs)
   ) %>%
     mutate(
-      sv = sqrt(n_var),
       algorithm = case_match(
         algorithm,
         "0T" ~ "1A",
         "0D" ~ "1B",
         "01" ~ "2A",
         "02" ~ "2B",
+      ),
+      # rescale bias and std deviation to match
+      root_n_bias = root_n_bias * case_match(
+        scale,
+        "u" ~ 1,
+        "s" ~ true_vte,
+      ),
+      sv = sqrt(n_var) * case_match(
+        scale,
+        "u" ~ 1,
+        "s" ~ true_vte,
       ),
     ) %>%
     unite("est", estimand:scale) %>%
@@ -225,7 +238,7 @@ sim_plots <- function(df, dgp_n, algs) {
         "1B" ~ +j / 2,
         "2A" ~ -j / 2,
         "2B" ~ +j / 2,
-      )
+      ),
     )
 
   # base plots

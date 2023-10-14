@@ -126,7 +126,7 @@ get_estimates <- function(df, k_folds) {
 
 # The meat of this script
 res <- run_simulation(
-  n_datasets = 1000,
+  n_datasets = 500,
   sample_sizes = c(500, 1000, 2000, 3000, 4000, 5000),
   generate_data = dgp,
   get_estimates = get_estimates,

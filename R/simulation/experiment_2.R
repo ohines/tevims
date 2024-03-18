@@ -187,10 +187,10 @@ sim_plots <- function(df, n_plot) {
             ),
             algorithm = case_match(
                 algorithm,
-                "0T" ~ "1A",
-                "0D" ~ "1B",
-                "01" ~ "2A",
-                "02" ~ "2B",
+                "0T" ~ "noSS-A",
+                "0D" ~ "noSS-B",
+                "01" ~ "SS-A",
+                "02" ~ "SS-B",
             ),
         ) %>%
         separate_wider_position(estimand, c(Strategy = 1, Covariate = 1)) %>%
@@ -205,10 +205,10 @@ sim_plots <- function(df, n_plot) {
             ),
             x = as.numeric(Covariate) + case_match(
                 algorithm,
-                "1A" ~ -3 * j / 2,
-                "1B" ~ -j / 2,
-                "2A" ~ j / 2,
-                "2B" ~ 3 * j / 2,
+                "noSS-A" ~ -3 * j / 2,
+                "noSS-B" ~ -j / 2,
+                "SS-A" ~ j / 2,
+                "SS-B" ~ 3 * j / 2,
             ),
         )
     pch <- 0
@@ -252,12 +252,12 @@ sim_plots <- function(df, n_plot) {
             facet_wrap(vars(est)) +
             scale_color_manual(
                 values = c(
-                    "1A" = "red",
-                    "1B" = "blue",
-                    "2A" = "darkgreen",
-                    "2B" = "purple"
+                    "noSS-A" = "red",
+                    "noSS-B" = "blue",
+                    "SS-A" = "darkgreen",
+                    "SS-B" = "purple"
                 ),
-                limits = c("1A", "1B", "2A", "2B"),
+                limits = c("noSS-A", "noSS-B", "SS-A", "SS-B"),
                 drop = FALSE
             ) +
             theme(axis.text.x = element_text(

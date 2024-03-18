@@ -232,7 +232,10 @@ nice_display <- function(p1, p2, p3, p4, labels = "AUTO") {
     ncol = 2,
     align = "hv",
     axis = "b",
-    labels = labels
+    labels = labels,
+    vjust = 1.1,
+    label_size = 12,
+    scale=0.94
   )
   cowplot::plot_grid(prow, legend_b, ncol = 1, rel_heights = c(1, .1))
 }
@@ -245,13 +248,14 @@ p_0T_s <- te_vim_forest(res, "0T", scale = "s", x_intercept = 1)
 p_0D_s <- te_vim_forest(res, "0D", scale = "s", x_intercept = 1)
 p_01_s <- te_vim_forest(res, "01", scale = "s", x_intercept = 1)
 p_02_s <- te_vim_forest(res, "02", scale = "s", x_intercept = 1)
+plot_labels <- c("noSS-A", "noSS-B", "SS-A", "SS-B")
 
 pdf(file = glue("{RESULTS_DIR}{INVESTIGATION_NAME}_applied_plot_unscaled.pdf"), width = 8, height = 8)
-plt <- nice_display(p_0T, p_0D, p_01, p_02, labels = c("1A", "1B", "2A", "2B"))
+plt <- nice_display(p_0T, p_0D, p_01, p_02, labels = plot_labels)
 print(plt)
 dev.off()
 
 pdf(file = glue("{RESULTS_DIR}{INVESTIGATION_NAME}_applied_plot_scaled.pdf"), width = 8, height = 8)
-plt <- nice_display(p_0T_s, p_0D_s, p_01_s, p_02_s, labels = c("1A", "1B", "2A", "2B"))
+plt <- nice_display(p_0T_s, p_0D_s, p_01_s, p_02_s, labels = plot_labels)
 print(plt)
 dev.off()

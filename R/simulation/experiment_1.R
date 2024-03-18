@@ -206,10 +206,10 @@ sim_plots <- function(df, dgp_n, algs) {
     mutate(
       algorithm = case_match(
         algorithm,
-        "0T" ~ "1A",
-        "0D" ~ "1B",
-        "01" ~ "2A",
-        "02" ~ "2B",
+        "0T" ~ "noSS-A",
+        "0D" ~ "noSS-B",
+        "01" ~ "SS-A",
+        "02" ~ "SS-B",
       ),
       # rescale bias and std deviation to match
       root_n_bias = root_n_bias * case_match(
@@ -234,10 +234,10 @@ sim_plots <- function(df, dgp_n, algs) {
         "b_u" ~ 2 * j,
       ) + case_match(
         algorithm,
-        "1A" ~ -j / 2,
-        "1B" ~ +j / 2,
-        "2A" ~ -j / 2,
-        "2B" ~ +j / 2,
+        "noSS-A" ~ -j / 2,
+        "noSS-B" ~ +j / 2,
+        "SS-A" ~ -j / 2,
+        "SS-B" ~ +j / 2,
       ),
     )
 
@@ -285,12 +285,12 @@ sim_plots <- function(df, dgp_n, algs) {
       labs(color = "Algorithm", shape = "Estimand") +
       scale_color_manual(
         values = c(
-          "1A" = "red",
-          "1B" = "blue",
-          "2A" = "darkgreen",
-          "2B" = "purple"
+          "noSS-A" = "red",
+          "noSS-B" = "blue",
+          "SS-A" = "darkgreen",
+          "SS-B" = "purple"
         ),
-        limits = c("1A", "1B", "2A", "2B"),
+        limits = c("noSS-A", "noSS-B", "SS-A", "SS-B"),
         drop = FALSE
       ) +
       scale_shape_manual(
@@ -320,10 +320,10 @@ ordering_plots <- function(df_order) {
       dgp = paste0("DGP ", dgp),
       algorithm = case_match(
         algorithm,
-        "0T" ~ "1A",
-        "0D" ~ "1B",
-        "01" ~ "2A",
-        "02" ~ "2B",
+        "0T" ~ "noSS-A",
+        "0D" ~ "noSS-B",
+        "01" ~ "SS-A",
+        "02" ~ "SS-B",
       ),
       # add a small amount of plot jitter
       n = n + case_match(
@@ -332,10 +332,10 @@ ordering_plots <- function(df_order) {
         "u" ~ -1.5 * j,
       ) + case_match(
         algorithm,
-        "1A" ~ -j,
-        "1B" ~ -j / 2,
-        "2A" ~ +j / 2,
-        "2B" ~ +j,
+        "noSS-A" ~ -j,
+        "noSS-B" ~ -j / 2,
+        "SS-A" ~ +j / 2,
+        "SS-B" ~ +j,
       )
     )
 
@@ -347,12 +347,12 @@ ordering_plots <- function(df_order) {
     theme_bw() +
     scale_color_manual(
       values = c(
-        "1A" = "red",
-        "1B" = "blue",
-        "2A" = "darkgreen",
-        "2B" = "purple"
+        "noSS-A" = "red",
+        "noSS-B" = "blue",
+        "SS-A" = "darkgreen",
+        "SS-B" = "purple"
       ),
-      limits = c("1A", "1B", "2A", "2B"),
+      limits = c("noSS-A", "noSS-B", "SS-A", "SS-B"),
       drop = FALSE
     ) +
     scale_shape_manual(
